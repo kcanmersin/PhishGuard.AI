@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhishGuard - Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fas fa-shield-alt"></i> PhishGuard</h2>
+            </div>
+            <div class="sidebar-user">
+                <div class="user-avatar">
+                    <i class="fas fa-user-circle"></i>
+                </div>
+                <div class="user-info">
+                    <span id="username">Loading...</span>
+                </div>
+            </div>
+            <ul class="sidebar-menu">
+                <li class="active" data-tab="home">
+                    <a href="#"><i class="fas fa-home"></i> Home</a>
+                </li>
+                <li data-tab="history">
+                    <a href="#"><i class="fas fa-history"></i> History</a>
+                </li>
+                <li data-tab="analyzer">
+                    <a href="#"><i class="fas fa-search"></i> Text Analyzer</a>
+                </li>
+                <li id="logoutBtn">
+                    <a href="#"><i class="fas fa-sign-out-alt"></i> Logout</a>
+                </li>
+            </ul>
+        </div>
+
+        <div class="main-content">
+            <div class="header">
+                <h1>Dashboard</h1>
+            </div>
+
+            <div class="tab-content active" id="home-tab">
+                <div class="stat-cards">
+                    <div class="stat-card">
+                        <div class="stat-card-icon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <div class="stat-card-info">
+                            <h3>Total Scans</h3>
+                            <p id="totalScans">Loading...</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-icon warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="stat-card-info">
+                            <h3>Phishing Detected</h3>
+                            <p id="phishingCount">Loading...</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-icon success">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-card-info">
+                            <h3>Safe Content</h3>
+                            <p id="safeCount">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h2>Phishing Detection Results</h2>
+                    <canvas id="resultsChart"></canvas>
+                </div>
+
+                <div class="recent-activity">
+                    <h2>Recent Activity</h2>
+                    <div class="activity-list" id="recentActivity">
+                        <div class="loading-spinner">
+                            <i class="fas fa-spinner fa-spin"></i> Loading...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="history-tab">
+                <div class="search-filter">
+                    <input type="text" id="historySearch" placeholder="Search in history...">
+                    <select id="resultFilter">
+                        <option value="all">All Results</option>
+                        <option value="Phishing">Phishing</option>
+                        <option value="Safe">Safe</option>
+                    </select>
+                </div>
+
+                <div class="history-table-container">
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>Text</th>
+                                <th>Result</th>
+                                <th>NLP Confidence</th>
+                                <th>LLM Confidence</th>
+                                <th>Final Confidence</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <tr>
+                                <td colspan="5" class="loading-cell">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading history...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="tab-content" id="analyzer-tab">
+                <div class="analyzer-container">
+                    <h2>Phishing Text Analyzer</h2>
+                    <p>Enter or paste text to analyze for phishing content:</p>
+                    
+                    <div class="form-group">
+                        <textarea id="textToAnalyze" rows="8" placeholder="Enter text to analyze..."></textarea>
+                    </div>
+                    
+                    <div class="analysis-options">
+                        <div>
+                            <label>Analysis Method:</label>
+                            <select id="analysisMode">
+                                <option value="both">NLP & LLM (Recommended)</option>
+                                <option value="nlp">NLP Only (Fast)</option>
+                                <option value="llm">LLM Only (Accurate)</option>
+                            </select>
+                        </div>
+                        <div class="save-option">
+                            <input type="checkbox" id="saveAnalysis" checked>
+                            <label for="saveAnalysis">Save analysis to history</label>
+                        </div>
+                    </div>
+                    
+                    <button id="analyzeBtn" class="btn primary-btn">
+                        <i class="fas fa-search"></i> Analyze Text
+                    </button>
+                    
+                    <div id="analysisResult" class="analysis-result hidden">
+                        <div class="result-header">
+                            <h3>Analysis Result</h3>
+                            <span id="resultBadge" class="badge"></span>
+                        </div>
+                        
+                        <div class="confidence-meters">
+                            <div class="confidence-meter">
+                                <label>NLP Confidence:</label>
+                                <div class="meter-container">
+                                    <div id="nlpMeter" class="meter"></div>
+                                    <span id="nlpConfidence">0%</span>
+                                </div>
+                            </div>
+                            
+                            <div class="confidence-meter">
+                                <label>LLM Confidence:</label>
+                                <div class="meter-container">
+                                    <div id="llmMeter" class="meter"></div>
+                                    <span id="llmConfidence">0%</span>
+                                </div>
+                            </div>
+                            
+                            <div class="confidence-meter">
+                                <label>Final Confidence:</label>
+                                <div class="meter-container">
+                                    <div id="finalMeter" class="meter"></div>
+                                    <span id="finalConfidence">0%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const token = localStorage.getItem('jwtToken');
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+            
+            loadDashboardData();
+            setupTabNavigation();
+            
+            document.getElementById('logoutBtn').addEventListener('click', logout);
+            
+            setupAnalyzer();
+            setupHistoryFilters();
+        });
+
+        function logout() {
+            const tokenBeforeLogout = localStorage.getItem('jwtToken');
+            console.log('Token before logout:', tokenBeforeLogout ? 
+                `First 10 chars: ${tokenBeforeLogout.substring(0, 10)}... (Length: ${tokenBeforeLogout.length})` 
+                : 'No token found');
+            
+            localStorage.removeItem('jwtToken');
+            
+            const tokenAfterLogout = localStorage.getItem('jwtToken');
+            console.log('Token after logout:', tokenAfterLogout || 'Token successfully removed');
+            
+            try {
+                chrome.storage.local.get('jwtToken', function(result) {
+                    console.log('Chrome storage token before removal:', 
+                        result.jwtToken ? 
+                        `First 10 chars: ${result.jwtToken.substring(0, 10)}... (Length: ${result.jwtToken.length})` 
+                        : 'No token found in chrome.storage');
+                });
+                
+                chrome.storage.local.remove('jwtToken', function() {
+                    console.log('Token removed from chrome.storage');
+                });
+            } catch (error) {
+                console.log('Chrome storage not available', error);
+            }
+            
+            sessionStorage.clear();
+            window.location.href = '/login';
+        }
+        
+        async function loadDashboardData() {
+            const token = localStorage.getItem('jwtToken');
+            try {
+                const response = await fetch(`/get_dashboard_data?token=${token}`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('username').textContent = data.username;
+                    
+                    const totalScans = data.results.length;
+                    const phishingCount = data.results.filter(r => r.phishing_result === 'Phishing').length;
+                    const safeCount = data.results.filter(r => r.phishing_result === 'Safe').length;
+                    
+                    document.getElementById('totalScans').textContent = totalScans;
+                    document.getElementById('phishingCount').textContent = phishingCount;
+                    document.getElementById('safeCount').textContent = safeCount;
+                    
+                    createResultsChart(phishingCount, safeCount);
+                    populateRecentActivity(data.results.slice(0, 5));
+                    populateHistoryTable(data.results);
+                    
+                    window.allResults = data.results;
+                } else {
+                    console.error('Failed to load dashboard data');
+                    if (response.status === 401) {
+                        localStorage.removeItem('jwtToken');
+                        window.location.href = '/login';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+            }
+        }
+        
+        function createResultsChart(phishingCount, safeCount) {
+            const ctx = document.getElementById('resultsChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Phishing', 'Safe'],
+                    datasets: [{
+                        data: [phishingCount, safeCount],
+                        backgroundColor: ['#ff6b6b', '#51cf66'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+        
+        function populateRecentActivity(results) {
+            const activityList = document.getElementById('recentActivity');
+            activityList.innerHTML = '';
+            
+            if (results.length === 0) {
+                activityList.innerHTML = '<div class="no-data">No activity yet</div>';
+                return;
+            }
+            
+            results.forEach(result => {
+                const truncatedText = result.selected_text.length > 50 
+                    ? result.selected_text.substring(0, 50) + '...' 
+                    : result.selected_text;
+                
+                const activityItem = document.createElement('div');
+                activityItem.className = 'activity-item';
+                
+                const resultClass = result.phishing_result === 'Phishing' ? 'danger' : 'success';
+                const resultIcon = result.phishing_result === 'Phishing' 
+                    ? 'exclamation-triangle' 
+                    : 'check-circle';
+                
+                activityItem.innerHTML = `
+                    <div class="activity-icon ${resultClass}">
+                        <i class="fas fa-${resultIcon}"></i>
+                    </div>
+                    <div class="activity-details">
+                        <p>${truncatedText}</p>
+                        <span class="activity-result ${resultClass}">
+                            ${result.phishing_result} (${Math.round(result.final_confidence * 100)}%)
+                        </span>
+                    </div>
+                `;
+                
+                activityList.appendChild(activityItem);
+            });
+        }
+        
+        function populateHistoryTable(results) {
+            const tableBody = document.getElementById('historyTableBody');
+            tableBody.innerHTML = '';
+            
+            if (results.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="5" class="no-data">No history data available</td>';
+                tableBody.appendChild(tr);
+                return;
+            }
+            
+            results.forEach(result => {
+                const tr = document.createElement('tr');
+                
+                const resultClass = result.phishing_result === 'Phishing' ? 'danger' : 'success';
+                
+                tr.innerHTML = `
+                    <td class="text-cell">${result.selected_text}</td>
+                    <td class="result-cell">
+                        <span class="result-badge ${resultClass}">
+                            ${result.phishing_result}
+                        </span>
+                    </td>
+                    <td>${formatPercentage(result.nlp_confidence)}</td>
+                    <td>${formatPercentage(result.llm_confidence)}</td>
+                    <td>${formatPercentage(result.final_confidence)}</td>
+                `;
+                
+                tableBody.appendChild(tr);
+            });
+        }
+        
+        function formatPercentage(value) {
+            return (value * 100).toFixed(1) + '%';
+        }
+        
+        function setupTabNavigation() {
+            const tabs = document.querySelectorAll('.sidebar-menu li[data-tab]');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    const tabContents = document.querySelectorAll('.tab-content');
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    
+                    const tabId = this.getAttribute('data-tab');
+                    document.getElementById(`${tabId}-tab`).classList.add('active');
+                });
+            });
+        }
+        
+        function setupAnalyzer() {
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            analyzeBtn.addEventListener('click', async function() {
+                const textToAnalyze = document.getElementById('textToAnalyze').value.trim();
+                if (!textToAnalyze) {
+                    alert('Please enter text to analyze');
+                    return;
+                }
+                
+                analyzeBtn.disabled = true;
+                analyzeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
+                
+                const analysisMode = document.getElementById('analysisMode').value;
+                const saveAnalysis = document.getElementById('saveAnalysis').checked;
+                
+                try {
+                    const token = localStorage.getItem('jwtToken');
+                    const response = await fetch('/save_phishing_result', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            jwt_token: token,
+                            selected_text: textToAnalyze,
+                            analysis_mode: analysisMode,
+                            save: saveAnalysis
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        displayAnalysisResult(data);
+                        
+                        if (saveAnalysis) {
+                            loadDashboardData();
+                        }
+                    } else {
+                        alert(data.error || 'Analysis failed');
+                    }
+                } catch (error) {
+                    console.error('Analysis error:', error);
+                    alert('An error occurred during analysis');
+                } finally {
+                    analyzeBtn.disabled = false;
+                    analyzeBtn.innerHTML = '<i class="fas fa-search"></i> Analyze Text';
+                }
+            });
+        }
+        
+        function displayAnalysisResult(data) {
+            const resultElement = document.getElementById('analysisResult');
+            resultElement.classList.remove('hidden');
+            
+            const resultBadge = document.getElementById('resultBadge');
+            resultBadge.textContent = data.result;
+            resultBadge.className = 'badge ' + (data.result === 'Phishing' ? 'danger' : 'success');
+            
+            updateConfidenceMeter('nlpMeter', 'nlpConfidence', data.nlp_confidence);
+            updateConfidenceMeter('llmMeter', 'llmConfidence', data.llm_confidence);
+            updateConfidenceMeter('finalMeter', 'finalConfidence', data.final_confidence);
+        }
+        
+        function updateConfidenceMeter(meterId, confidenceId, value) {
+            const meter = document.getElementById(meterId);
+            const confidenceText = document.getElementById(confidenceId);
+            
+            meter.style.width = (value * 100) + '%';
+            
+            if (value >= 0.7) {
+                meter.className = 'meter danger';
+            } else if (value >= 0.4) {
+                meter.className = 'meter warning';
+            } else {
+                meter.className = 'meter success';
+            }
+            
+            confidenceText.textContent = (value * 100).toFixed(1) + '%';
+        }
+        
+        function setupHistoryFilters() {
+            const searchInput = document.getElementById('historySearch');
+            const resultFilter = document.getElementById('resultFilter');
+            
+            function applyFilters() {
+                const searchTerm = searchInput.value.toLowerCase();
+                const filterValue = resultFilter.value;
+                
+                let filteredResults = window.allResults || [];
+                
+                if (filterValue !== 'all') {
+                    filteredResults = filteredResults.filter(r => r.phishing_result === filterValue);
+                }
+                
+                if (searchTerm) {
+                    filteredResults = filteredResults.filter(r => 
+                        r.selected_text.toLowerCase().includes(searchTerm)
+                    );
+                }
+                
+                populateHistoryTable(filteredResults);
+            }
+            
+            searchInput.addEventListener('input', applyFilters);
+            resultFilter.addEventListener('change', applyFilters);
+        }
+    </script>
+</body>
+</html>
