@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>PhisGuard.AI</title>
+  <style>
+    body {
+      width: 320px;
+      min-height: 300px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f8f9fa;
+      color: #333;
+    }
+
+    .container {
+      padding: 15px;
+    }
+
+    header {
+      background: linear-gradient(135deg, #2c3e50, #4CA1AF);
+      color: white;
+      padding: 15px;
+      text-align: center;
+      border-bottom: 1px solid #ddd;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .logo {
+      width: 40px;
+      height: 40px;
+      margin-bottom: 5px;
+    }
+
+    .content {
+      padding: 15px;
+    }
+
+    .login-form {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    button {
+      background-color: #2c3e50;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      background-color: #4CA1AF;
+    }
+
+    .analyze-btn {
+      background-color: #4CAF50;
+      margin-top: 10px;
+    }
+
+    .analyze-btn:hover {
+      background-color: #3e8e41;
+    }
+
+    .status {
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .success {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .error {
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .warning {
+      background-color: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeeba;
+    }
+
+    .loading {
+      text-align: center;
+      margin: 20px 0;
+    }
+
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      border-top: 4px solid #3498db;
+      width: 30px;
+      height: 30px;
+      animation: spin 2s linear infinite;
+      margin: 0 auto 10px;
+    }
+
+    .user-info {
+      margin-bottom: 15px;
+      padding: 10px;
+      background-color: #e9ecef;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .logout-btn {
+      background-color: #dc3545;
+      margin-top: 10px;
+    }
+
+    .logout-btn:hover {
+      background-color: #c82333;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .result-container {
+      margin-top: 15px;
+      padding: 15px;
+      border-radius: 4px;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .result-phishing {
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .result-safe {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .confidence-bar {
+      height: 10px;
+      background-color: #e9ecef;
+      border-radius: 5px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+
+    .confidence-level {
+      height: 100%;
+      border-radius: 5px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .register-link, .login-link {
+      display: block;
+      text-align: center;
+      margin-top: 15px;
+      font-size: 13px;
+      color: #2c3e50;
+      text-decoration: none;
+    }
+
+    .register-link:hover, .login-link:hover {
+      text-decoration: underline;
+    }
+    
+    #debug-btn {
+      position: absolute;
+      bottom: 5px;
+      right: 5px;
+      font-size: 10px;
+      background: transparent;
+      color: #aaa;
+      border: none;
+      padding: 2px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="icons/icon48.png" alt="PhisGuard.AI Logo" class="logo">
+    <h1>PhisGuard.AI</h1>
+  </header>
+
+  <div class="container">
+    <!-- Login View -->
+    <div id="login-view">
+      <div class="content">
+        <form id="login-form" class="login-form">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" required>
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" required>
+          </div>
+          <button type="submit">Login</button>
+        </form>
+        <a href="#" id="register-link" class="register-link">Don't have an account? Register</a>
+        <div id="login-status" class="status hidden"></div>
+      </div>
+    </div>
+
+    <!-- Register View -->
+    <div id="register-view" class="hidden">
+      <div class="content">
+        <form id="register-form" class="login-form">
+          <div class="form-group">
+            <label for="reg-username">Username</label>
+            <input type="text" id="reg-username" required>
+          </div>
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" required>
+          </div>
+          <div class="form-group">
+            <label for="reg-password">Password</label>
+            <input type="password" id="reg-password" required>
+          </div>
+          <button type="submit">Register</button>
+        </form>
+        <a href="#" id="login-link" class="login-link">Already have an account? Login</a>
+        <div id="register-status" class="status hidden"></div>
+      </div>
+    </div>
+
+    <!-- Dashboard View -->
+    <div id="dashboard-view" class="hidden">
+      <div class="content">
+        <div id="user-info" class="user-info">
+          Logged in as: <span id="username-display"></span>
+        </div>
+        <button id="analyze-btn" class="analyze-btn">Analyze Current Email</button>
+        <div id="analysis-loading" class="loading hidden">
+          <div class="spinner"></div>
+          <p>Analyzing email...</p>
+        </div>
+        <div id="result-container" class="result-container hidden">
+          <div id="result-title"></div>
+          <div id="result-confidence"></div>
+          <div class="confidence-bar">
+            <div id="confidence-level" class="confidence-level"></div>
+          </div>
+        </div>
+        <button id="logout-btn" class="logout-btn">Logout</button>
+      </div>
+    </div>
+  </div>
+  
+  <button id="debug-btn">D</button>
+
+  <script src="popup.js"></script>
+</body>
+</html>
