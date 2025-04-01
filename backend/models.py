@@ -54,8 +54,20 @@ class PhishingText(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     selected_text = db.Column(db.Text, nullable=False)
     phishing_result = db.Column(db.String(100), nullable=False)
-    nlp_confidence = db.Column(db.Float, nullable=False)
-    llm_confidence = db.Column(db.Float, nullable=False)
+    
+    # NLP confidence scores
+    nlp_model1_confidence = db.Column(db.Float, nullable=False)
+    nlp_model2_confidence = db.Column(db.Float, nullable=False)
+    
+    # LLM confidence scores
+    llm_model1_confidence = db.Column(db.Float, nullable=False)
+    llm_model2_confidence = db.Column(db.Float, nullable=False)
+    
+    # LLM reasoning
+    llm_model1_reason = db.Column(db.Text, nullable=True)
+    llm_model2_reason = db.Column(db.Text, nullable=True)
+    
+    # Combined result
     final_confidence = db.Column(db.Float, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -75,8 +87,12 @@ class PhishingText(db.Model):
             "id": self.id,
             "user_id": self.user_id,
             "phishing_result": self.phishing_result,
-            "nlp_confidence": self.nlp_confidence,
-            "llm_confidence": self.llm_confidence,
+            "nlp_model1_confidence": self.nlp_model1_confidence,
+            "nlp_model2_confidence": self.nlp_model2_confidence,
+            "llm_model1_confidence": self.llm_model1_confidence,
+            "llm_model2_confidence": self.llm_model2_confidence,
+            "llm_model1_reason": self.llm_model1_reason,
+            "llm_model2_reason": self.llm_model2_reason,
             "final_confidence": self.final_confidence,
             "severity": self.severity,
             "created_at": self.created_at.strftime("%Y-%m-%d %H:%M:%S"),

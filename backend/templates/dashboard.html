@@ -105,14 +105,17 @@
                             <tr>
                                 <th>Text</th>
                                 <th>Result</th>
-                                <th>NLP Confidence</th>
-                                <th>LLM Confidence</th>
-                                <th>Final Confidence</th>
+                                <th>NLP Model 1</th>
+                                <th>NLP Model 2</th>
+                                <th>LLM Model 1</th>
+                                <th>LLM Model 2</th>
+                                <th>Final Score</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="historyTableBody">
                             <tr>
-                                <td colspan="5" class="loading-cell">
+                                <td colspan="8" class="loading-cell">
                                     <i class="fas fa-spinner fa-spin"></i> Loading history...
                                 </td>
                             </tr>
@@ -120,7 +123,6 @@
                     </table>
                 </div>
             </div>
-
             <div class="tab-content" id="analyzer-tab">
                 <div class="analyzer-container">
                     <h2>Phishing Text Analyzer</h2>
@@ -131,13 +133,31 @@
                     </div>
                     
                     <div class="analysis-options">
-                        <div>
+                        <div class="analysis-method">
                             <label>Analysis Method:</label>
-                            <select id="analysisMode">
-                                <option value="both">NLP & LLM (Recommended)</option>
-                                <option value="nlp">NLP Only (Fast)</option>
-                                <option value="llm">LLM Only (Accurate)</option>
-                            </select>
+                            <div class="method-options">
+                                <label class="method-option">
+                                    <input type="checkbox" name="nlp_model1" checked> 
+                                    <span>NLP Model 1 (Keyword Analysis)</span>
+                                </label>
+                                <label class="method-option">
+                                    <input type="checkbox" name="nlp_model2" checked> 
+                                    <span>NLP Model 2 (Statistical Analysis)</span>
+                                </label>
+                                <label class="method-option">
+                                    <input type="checkbox" name="llm_model1" checked> 
+                                    <span>LLM Model 1 (Llama 3.3)</span>
+                                </label>
+                                <label class="method-option">
+                                    <input type="checkbox" name="llm_model2" checked> 
+                                    <span>LLM Model 2 (Gemma 2)</span>
+                                </label>
+                            </div>
+                            <div class="preset-buttons">
+                                <button id="allModels" class="preset-btn active">All Models</button>
+                                <button id="nlpOnly" class="preset-btn">NLP Only (Fast)</button>
+                                <button id="llmOnly" class="preset-btn">LLM Only (Accurate)</button>
+                            </div>
                         </div>
                         <div class="save-option">
                             <input type="checkbox" id="saveAnalysis" checked>
@@ -156,19 +176,35 @@
                         </div>
                         
                         <div class="confidence-meters">
-                            <div class="confidence-meter">
-                                <label>NLP Confidence:</label>
+                            <div class="confidence-meter" id="nlpModel1Container">
+                                <label>NLP Model 1:</label>
                                 <div class="meter-container">
-                                    <div id="nlpMeter" class="meter"></div>
-                                    <span id="nlpConfidence">0%</span>
+                                    <div id="nlpModel1Meter" class="meter"></div>
+                                    <span id="nlpModel1Confidence">0%</span>
                                 </div>
                             </div>
                             
-                            <div class="confidence-meter">
-                                <label>LLM Confidence:</label>
+                            <div class="confidence-meter" id="nlpModel2Container">
+                                <label>NLP Model 2:</label>
                                 <div class="meter-container">
-                                    <div id="llmMeter" class="meter"></div>
-                                    <span id="llmConfidence">0%</span>
+                                    <div id="nlpModel2Meter" class="meter"></div>
+                                    <span id="nlpModel2Confidence">0%</span>
+                                </div>
+                            </div>
+                            
+                            <div class="confidence-meter" id="llmModel1Container">
+                                <label>LLM Model 1:</label>
+                                <div class="meter-container">
+                                    <div id="llmModel1Meter" class="meter"></div>
+                                    <span id="llmModel1Confidence">0%</span>
+                                </div>
+                            </div>
+                            
+                            <div class="confidence-meter" id="llmModel2Container">
+                                <label>LLM Model 2:</label>
+                                <div class="meter-container">
+                                    <div id="llmModel2Meter" class="meter"></div>
+                                    <span id="llmModel2Confidence">0%</span>
                                 </div>
                             </div>
                             
@@ -180,6 +216,26 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <div id="reasoningContainer" class="reasoning-container hidden">
+                            <button id="toggleReasoning" class="toggle-btn">Show AI Reasoning</button>
+                            <div id="reasoningContent" class="reasoning-content hidden"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Detail View Modal -->
+            <div id="detailModal" class="modal hidden">
+                <div class="modal-content">
+                    <span class="close-modal">&times;</span>
+                    <h3>Analysis Details</h3>
+                    <div class="detail-body">
+                        <div class="detail-text"></div>
+                        <div class="detail-result"></div>
+                        <div class="detail-models"></div>
+                        <div class="detail-reasoning"></div>
+                        <div class="detail-indicators"></div>
                     </div>
                 </div>
             </div>
@@ -201,27 +257,13 @@
             
             setupAnalyzer();
             setupHistoryFilters();
+            setupModal();
         });
 
         function logout() {
-            const tokenBeforeLogout = localStorage.getItem('jwtToken');
-            console.log('Token before logout:', tokenBeforeLogout ? 
-                `First 10 chars: ${tokenBeforeLogout.substring(0, 10)}... (Length: ${tokenBeforeLogout.length})` 
-                : 'No token found');
-            
             localStorage.removeItem('jwtToken');
             
-            const tokenAfterLogout = localStorage.getItem('jwtToken');
-            console.log('Token after logout:', tokenAfterLogout || 'Token successfully removed');
-            
             try {
-                chrome.storage.local.get('jwtToken', function(result) {
-                    console.log('Chrome storage token before removal:', 
-                        result.jwtToken ? 
-                        `First 10 chars: ${result.jwtToken.substring(0, 10)}... (Length: ${result.jwtToken.length})` 
-                        : 'No token found in chrome.storage');
-                });
-                
                 chrome.storage.local.remove('jwtToken', function() {
                     console.log('Token removed from chrome.storage');
                 });
@@ -255,6 +297,12 @@
                     populateHistoryTable(data.results);
                     
                     window.allResults = data.results;
+                    window.modelNames = data.models || {
+                        nlp_model1: "NLP Model 1",
+                        nlp_model2: "NLP Model 2",
+                        llm_model1: "LLM Model 1",
+                        llm_model2: "LLM Model 2"
+                    };
                 } else {
                     console.error('Failed to load dashboard data');
                     if (response.status === 401) {
@@ -335,7 +383,7 @@
             
             if (results.length === 0) {
                 const tr = document.createElement('tr');
-                tr.innerHTML = '<td colspan="5" class="no-data">No history data available</td>';
+                tr.innerHTML = '<td colspan="8" class="no-data">No history data available</td>';
                 tableBody.appendChild(tr);
                 return;
             }
@@ -352,16 +400,30 @@
                             ${result.phishing_result}
                         </span>
                     </td>
-                    <td>${formatPercentage(result.nlp_confidence)}</td>
-                    <td>${formatPercentage(result.llm_confidence)}</td>
+                    <td>${formatPercentage(result.nlp_model1_confidence)}</td>
+                    <td>${formatPercentage(result.nlp_model2_confidence)}</td>
+                    <td>${formatPercentage(result.llm_model1_confidence)}</td>
+                    <td>${formatPercentage(result.llm_model2_confidence)}</td>
                     <td>${formatPercentage(result.final_confidence)}</td>
+                    <td>
+                        <button class="view-btn" data-id="${result.id}">View</button>
+                    </td>
                 `;
                 
                 tableBody.appendChild(tr);
             });
+            
+            const viewButtons = document.querySelectorAll('.view-btn');
+            viewButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const id = this.getAttribute('data-id');
+                    showDetails(id);
+                });
+            });
         }
         
         function formatPercentage(value) {
+            if (isNaN(value) || value === null) return "N/A";
             return (value * 100).toFixed(1) + '%';
         }
         
@@ -381,57 +443,340 @@
             });
         }
         
+
         function setupAnalyzer() {
-            const analyzeBtn = document.getElementById('analyzeBtn');
-            analyzeBtn.addEventListener('click', async function() {
-                const textToAnalyze = document.getElementById('textToAnalyze').value.trim();
-                if (!textToAnalyze) {
-                    alert('Please enter text to analyze');
-                    return;
-                }
-                
-                analyzeBtn.disabled = true;
-                analyzeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
-                
-                const analysisMode = document.getElementById('analysisMode').value;
-                const saveAnalysis = document.getElementById('saveAnalysis').checked;
-                
-                try {
-                    const token = localStorage.getItem('jwtToken');
-                    const response = await fetch('/save_phishing_result', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            jwt_token: token,
-                            selected_text: textToAnalyze,
-                            analysis_mode: analysisMode,
-                            save: saveAnalysis
-                        })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (response.ok) {
-                        displayAnalysisResult(data);
-                        
-                        if (saveAnalysis) {
-                            loadDashboardData();
-                        }
-                    } else {
-                        alert(data.error || 'Analysis failed');
-                    }
-                } catch (error) {
-                    console.error('Analysis error:', error);
-                    alert('An error occurred during analysis');
-                } finally {
-                    analyzeBtn.disabled = false;
-                    analyzeBtn.innerHTML = '<i class="fas fa-search"></i> Analyze Text';
-                }
-            });
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const modelCheckboxes = document.querySelectorAll('.method-option input');
+    const presetButtons = document.querySelectorAll('.preset-btn');
+    const allModelsBtn = document.getElementById('allModels');
+    const nlpOnlyBtn = document.getElementById('nlpOnly');
+    const llmOnlyBtn = document.getElementById('llmOnly');
+    
+    // Set up preset buttons
+    allModelsBtn.addEventListener('click', function() {
+        setActivePreset(this);
+        modelCheckboxes.forEach(checkbox => checkbox.checked = true);
+    });
+    
+    nlpOnlyBtn.addEventListener('click', function() {
+        setActivePreset(this);
+        modelCheckboxes.forEach(checkbox => {
+            if (checkbox.name.startsWith('nlp')) {
+                checkbox.checked = true;
+            } else {
+                checkbox.checked = false;
+            }
+        });
+    });
+    
+    llmOnlyBtn.addEventListener('click', function() {
+        setActivePreset(this);
+        modelCheckboxes.forEach(checkbox => {
+            if (checkbox.name.startsWith('llm')) {
+                checkbox.checked = true;
+            } else {
+                checkbox.checked = false;
+            }
+        });
+    });
+    
+    // When individual checkboxes are changed, update active preset
+    modelCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateActivePreset);
+    });
+    
+    // Handle analysis button click
+    analyzeBtn.addEventListener('click', async function() {
+        const textToAnalyze = document.getElementById('textToAnalyze').value.trim();
+        if (!textToAnalyze) {
+            alert('Please enter text to analyze');
+            return;
         }
         
+        // Get selected models
+        const selectedModels = getSelectedModels();
+        if (Object.keys(selectedModels).length === 0) {
+            alert('Please select at least one model for analysis');
+            return;
+        }
+        
+        analyzeBtn.disabled = true;
+        analyzeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Analyzing...';
+        
+        const saveAnalysis = document.getElementById('saveAnalysis').checked;
+        
+        try {
+            const token = localStorage.getItem('jwtToken');
+            const response = await fetch('/analyze_email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    jwt_token: token,
+                    selected_text: textToAnalyze,
+                    email_data: {
+                        subject: "Text Analysis",
+                        from: "Manual Input"
+                    },
+                    models: selectedModels,
+                    save_analysis: saveAnalysis
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok && data.success) {
+                displayAnalysisResult(data, selectedModels);
+                setupReasoningToggle(); // Setup the toggle button after displaying results
+                
+                if (saveAnalysis) {
+                    loadDashboardData();
+                }
+            } else {
+                alert(data.message || 'Analysis failed');
+            }
+        } catch (error) {
+            console.error('Analysis error:', error);
+            alert('An error occurred during analysis');
+        } finally {
+            analyzeBtn.disabled = false;
+            analyzeBtn.innerHTML = '<i class="fas fa-search"></i> Analyze Text';
+        }
+    });
+}
+
+// Separate function to set up the reasoning toggle
+function setupReasoningToggle() {
+    const toggleReasoningBtn = document.getElementById('toggleReasoning');
+    if (toggleReasoningBtn) {
+        // Remove any existing event listeners by cloning and replacing the button
+        const newToggleBtn = toggleReasoningBtn.cloneNode(true);
+        toggleReasoningBtn.parentNode.replaceChild(newToggleBtn, toggleReasoningBtn);
+        
+        newToggleBtn.addEventListener('click', function() {
+            const reasoningContent = document.getElementById('reasoningContent');
+            if (reasoningContent.classList.contains('hidden')) {
+                reasoningContent.classList.remove('hidden');
+                this.textContent = 'Hide AI Reasoning';
+            } else {
+                reasoningContent.classList.add('hidden');
+                this.textContent = 'Show AI Reasoning';
+            }
+        });
+    }
+}
+
+function setActivePreset(button) {
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    button.classList.add('active');
+}
+
+function updateActivePreset() {
+    const checkboxes = document.querySelectorAll('.method-option input');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    const onlyNLP = Array.from(checkboxes).filter(cb => cb.name.startsWith('nlp')).every(cb => cb.checked) &&
+                    Array.from(checkboxes).filter(cb => cb.name.startsWith('llm')).every(cb => !cb.checked);
+    const onlyLLM = Array.from(checkboxes).filter(cb => cb.name.startsWith('llm')).every(cb => cb.checked) &&
+                   Array.from(checkboxes).filter(cb => cb.name.startsWith('nlp')).every(cb => !cb.checked);
+    
+    document.getElementById('allModels').classList.toggle('active', allChecked);
+    document.getElementById('nlpOnly').classList.toggle('active', onlyNLP);
+    document.getElementById('llmOnly').classList.toggle('active', onlyLLM);
+    
+    if (!allChecked && !onlyNLP && !onlyLLM) {
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+    }
+}
+
+function getSelectedModels() {
+    const selectedModels = {};
+    document.querySelectorAll('.method-option input:checked').forEach(checkbox => {
+        selectedModels[checkbox.name] = true;
+    });
+    return selectedModels;
+}
+
+function displayAnalysisResult(data, selectedModels) {
+    const resultElement = document.getElementById('analysisResult');
+    resultElement.classList.remove('hidden');
+    
+    // Display result badge
+    const resultBadge = document.getElementById('resultBadge');
+    resultBadge.textContent = data.result;
+    resultBadge.className = 'badge ' + (data.result === 'Phishing' ? 'danger' : 'success');
+    
+    // Show/hide meter containers based on selected models
+    document.getElementById('nlpModel1Container').style.display = 
+        selectedModels.nlp_model1 ? 'flex' : 'none';
+    document.getElementById('nlpModel2Container').style.display = 
+        selectedModels.nlp_model2 ? 'flex' : 'none';
+    document.getElementById('llmModel1Container').style.display = 
+        selectedModels.llm_model1 ? 'flex' : 'none';
+    document.getElementById('llmModel2Container').style.display = 
+        selectedModels.llm_model2 ? 'flex' : 'none';
+    
+    // Update confidence meters
+    if (selectedModels.nlp_model1) {
+        updateConfidenceMeter('nlpModel1Meter', 'nlpModel1Confidence', data.nlp_model1_confidence);
+    }
+    if (selectedModels.nlp_model2) {
+        updateConfidenceMeter('nlpModel2Meter', 'nlpModel2Confidence', data.nlp_model2_confidence);
+    }
+    if (selectedModels.llm_model1) {
+        updateConfidenceMeter('llmModel1Meter', 'llmModel1Confidence', data.llm_model1_confidence);
+    }
+    if (selectedModels.llm_model2) {
+        updateConfidenceMeter('llmModel2Meter', 'llmModel2Confidence', data.llm_model2_confidence);
+    }
+    updateConfidenceMeter('finalMeter', 'finalConfidence', data.final_confidence);
+    
+    // Handle reasoning display if LLM models were selected
+    const reasoningContainer = document.getElementById('reasoningContainer');
+    const reasoningContent = document.getElementById('reasoningContent');
+    
+    if ((selectedModels.llm_model1 && data.llm_model1_reason) || 
+        (selectedModels.llm_model2 && data.llm_model2_reason)) {
+        reasoningContainer.classList.remove('hidden');
+        reasoningContent.innerHTML = '';
+        
+        if (selectedModels.llm_model1 && data.llm_model1_reason) {
+            const modelName = window.modelNames?.llm_model1 || "LLM Model 1";
+            const reasoning = document.createElement('div');
+            reasoning.innerHTML = `
+                <h4>${modelName} Analysis:</h4>
+                <p>${data.llm_model1_reason}</p>
+            `;
+            reasoningContent.appendChild(reasoning);
+        }
+        
+        if (selectedModels.llm_model2 && data.llm_model2_reason) {
+            const modelName = window.modelNames?.llm_model2 || "LLM Model 2";
+            const reasoning = document.createElement('div');
+            reasoning.innerHTML = `
+                <h4>${modelName} Analysis:</h4>
+                <p>${data.llm_model2_reason}</p>
+            `;
+            reasoningContent.appendChild(reasoning);
+        }
+        
+        // Make sure reasoning content is hidden initially
+        reasoningContent.classList.add('hidden');
+    } else {
+        reasoningContainer.classList.add('hidden');
+    }
+}
+
+
+
+
+
+
+
+function setActivePreset(button) {
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    button.classList.add('active');
+}
+
+function updateActivePreset() {
+    const checkboxes = document.querySelectorAll('.method-option input');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    const onlyNLP = Array.from(checkboxes).filter(cb => cb.name.startsWith('nlp')).every(cb => cb.checked) &&
+                    Array.from(checkboxes).filter(cb => cb.name.startsWith('llm')).every(cb => !cb.checked);
+    const onlyLLM = Array.from(checkboxes).filter(cb => cb.name.startsWith('llm')).every(cb => cb.checked) &&
+                   Array.from(checkboxes).filter(cb => cb.name.startsWith('nlp')).every(cb => !cb.checked);
+    
+    document.getElementById('allModels').classList.toggle('active', allChecked);
+    document.getElementById('nlpOnly').classList.toggle('active', onlyNLP);
+    document.getElementById('llmOnly').classList.toggle('active', onlyLLM);
+    
+    if (!allChecked && !onlyNLP && !onlyLLM) {
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+    }
+}
+
+function getSelectedModels() {
+    const selectedModels = {};
+    document.querySelectorAll('.method-option input:checked').forEach(checkbox => {
+        selectedModels[checkbox.name] = true;
+    });
+    return selectedModels;
+}
+
+function displayAnalysisResult(data, selectedModels) {
+    const resultElement = document.getElementById('analysisResult');
+    resultElement.classList.remove('hidden');
+    
+    // Display result badge
+    const resultBadge = document.getElementById('resultBadge');
+    resultBadge.textContent = data.result;
+    resultBadge.className = 'badge ' + (data.result === 'Phishing' ? 'danger' : 'success');
+    
+    // Show/hide meter containers based on selected models
+    document.getElementById('nlpModel1Container').style.display = 
+        selectedModels.nlp_model1 ? 'flex' : 'none';
+    document.getElementById('nlpModel2Container').style.display = 
+        selectedModels.nlp_model2 ? 'flex' : 'none';
+    document.getElementById('llmModel1Container').style.display = 
+        selectedModels.llm_model1 ? 'flex' : 'none';
+    document.getElementById('llmModel2Container').style.display = 
+        selectedModels.llm_model2 ? 'flex' : 'none';
+    
+    // Update confidence meters
+    if (selectedModels.nlp_model1) {
+        updateConfidenceMeter('nlpModel1Meter', 'nlpModel1Confidence', data.nlp_model1_confidence);
+    }
+    if (selectedModels.nlp_model2) {
+        updateConfidenceMeter('nlpModel2Meter', 'nlpModel2Confidence', data.nlp_model2_confidence);
+    }
+    if (selectedModels.llm_model1) {
+        updateConfidenceMeter('llmModel1Meter', 'llmModel1Confidence', data.llm_model1_confidence);
+    }
+    if (selectedModels.llm_model2) {
+        updateConfidenceMeter('llmModel2Meter', 'llmModel2Confidence', data.llm_model2_confidence);
+    }
+    updateConfidenceMeter('finalMeter', 'finalConfidence', data.final_confidence);
+    
+    // Handle reasoning display if LLM models were selected
+    const reasoningContainer = document.getElementById('reasoningContainer');
+    const reasoningContent = document.getElementById('reasoningContent');
+    
+    if ((selectedModels.llm_model1 && data.llm_model1_reason) || 
+        (selectedModels.llm_model2 && data.llm_model2_reason)) {
+        reasoningContainer.classList.remove('hidden');
+        reasoningContent.innerHTML = '';
+        
+        if (selectedModels.llm_model1 && data.llm_model1_reason) {
+            const modelName = window.modelNames?.llm_model1 || "LLM Model 1";
+            const reasoning = document.createElement('div');
+            reasoning.innerHTML = `
+                <h4>${modelName} Analysis:</h4>
+                <p>${data.llm_model1_reason}</p>
+            `;
+            reasoningContent.appendChild(reasoning);
+        }
+        
+        if (selectedModels.llm_model2 && data.llm_model2_reason) {
+            const modelName = window.modelNames?.llm_model2 || "LLM Model 2";
+            const reasoning = document.createElement('div');
+            reasoning.innerHTML = `
+                <h4>${modelName} Analysis:</h4>
+                <p>${data.llm_model2_reason}</p>
+            `;
+            reasoningContent.appendChild(reasoning);
+        }
+    } else {
+        reasoningContainer.classList.add('hidden');
+    }
+}
         function displayAnalysisResult(data) {
             const resultElement = document.getElementById('analysisResult');
             resultElement.classList.remove('hidden');
@@ -440,14 +785,63 @@
             resultBadge.textContent = data.result;
             resultBadge.className = 'badge ' + (data.result === 'Phishing' ? 'danger' : 'success');
             
-            updateConfidenceMeter('nlpMeter', 'nlpConfidence', data.nlp_confidence);
-            updateConfidenceMeter('llmMeter', 'llmConfidence', data.llm_confidence);
+            updateConfidenceMeter('nlpModel1Meter', 'nlpModel1Confidence', data.nlp_model1_confidence);
+            updateConfidenceMeter('nlpModel2Meter', 'nlpModel2Confidence', data.nlp_model2_confidence);
+            updateConfidenceMeter('llmModel1Meter', 'llmModel1Confidence', data.llm_model1_confidence);
+            updateConfidenceMeter('llmModel2Meter', 'llmModel2Confidence', data.llm_model2_confidence);
             updateConfidenceMeter('finalMeter', 'finalConfidence', data.final_confidence);
+            
+            const reasoningContainer = document.getElementById('reasoningContainer');
+            const reasoningContent = document.getElementById('reasoningContent');
+            const toggleButton = document.getElementById('toggleReasoning');
+            
+            if (data.llm_model1_reason || data.llm_model2_reason) {
+                reasoningContainer.classList.remove('hidden');
+                reasoningContent.innerHTML = '';
+                
+                if (data.llm_model1_reason) {
+                    const modelName = window.modelNames?.llm_model1 || "LLM Model 1";
+                    const reasoning = document.createElement('div');
+                    reasoning.innerHTML = `
+                        <h4>${modelName} Analysis:</h4>
+                        <p>${data.llm_model1_reason}</p>
+                    `;
+                    reasoningContent.appendChild(reasoning);
+                }
+                
+                if (data.llm_model2_reason) {
+                    const modelName = window.modelNames?.llm_model2 || "LLM Model 2";
+                    const reasoning = document.createElement('div');
+                    reasoning.innerHTML = `
+                        <h4>${modelName} Analysis:</h4>
+                        <p>${data.llm_model2_reason}</p>
+                    `;
+                    reasoningContent.appendChild(reasoning);
+                }
+                
+                toggleButton.addEventListener('click', function() {
+                    if (reasoningContent.classList.contains('hidden')) {
+                        reasoningContent.classList.remove('hidden');
+                        toggleButton.textContent = 'Hide AI Reasoning';
+                    } else {
+                        reasoningContent.classList.add('hidden');
+                        toggleButton.textContent = 'Show AI Reasoning';
+                    }
+                });
+            } else {
+                reasoningContainer.classList.add('hidden');
+            }
         }
         
         function updateConfidenceMeter(meterId, confidenceId, value) {
             const meter = document.getElementById(meterId);
             const confidenceText = document.getElementById(confidenceId);
+            
+            if (isNaN(value) || value === null) {
+                confidenceText.textContent = 'N/A';
+                meter.style.width = '0%';
+                return;
+            }
             
             meter.style.width = (value * 100) + '%';
             
@@ -487,6 +881,109 @@
             
             searchInput.addEventListener('input', applyFilters);
             resultFilter.addEventListener('change', applyFilters);
+        }
+        
+        function setupModal() {
+            const modal = document.getElementById('detailModal');
+            const closeBtn = document.querySelector('.close-modal');
+            
+            closeBtn.addEventListener('click', function() {
+                modal.classList.add('hidden');
+            });
+            
+            window.addEventListener('click', function(event) {
+                if (event.target === modal) {
+                    modal.classList.add('hidden');
+                }
+            });
+        }
+        
+        function showDetails(id) {
+            const result = window.allResults.find(r => r.id == id);
+            if (!result) return;
+            
+            const modal = document.getElementById('detailModal');
+            const detailText = modal.querySelector('.detail-text');
+            const detailResult = modal.querySelector('.detail-result');
+            const detailModels = modal.querySelector('.detail-models');
+            const detailReasoning = modal.querySelector('.detail-reasoning');
+            const detailIndicators = modal.querySelector('.detail-indicators');
+            
+            detailText.innerHTML = `<h4>Analyzed Text:</h4><div class="text-content">${result.selected_text}</div>`;
+            detailResult.innerHTML = `
+                <h4>Result: <span class="${result.phishing_result === 'Phishing' ? 'danger-text' : 'success-text'}">${result.phishing_result}</span></h4>
+                <p>Severity: ${result.severity}</p>
+                <p>Analysis Date: ${result.created_at}</p>
+            `;
+            
+            detailModels.innerHTML = `<h4>Model Confidence Scores:</h4>
+                <table class="detail-table">
+                    <tr>
+                        <th>Model</th>
+                        <th>Confidence</th>
+                    </tr>
+                    <tr>
+                        <td>${window.modelNames?.nlp_model1 || "NLP Model 1"}</td>
+                        <td>${formatPercentage(result.nlp_model1_confidence)}</td>
+                    </tr>
+                    <tr>
+                        <td>${window.modelNames?.nlp_model2 || "NLP Model 2"}</td>
+                        <td>${formatPercentage(result.nlp_model2_confidence)}</td>
+                    </tr>
+                    <tr>
+                        <td>${window.modelNames?.llm_model1 || "LLM Model 1"}</td>
+                        <td>${formatPercentage(result.llm_model1_confidence)}</td>
+                    </tr>
+                    <tr>
+                        <td>${window.modelNames?.llm_model2 || "LLM Model 2"}</td>
+                        <td>${formatPercentage(result.llm_model2_confidence)}</td>
+                    </tr>
+                    <tr class="highlight-row">
+                        <td>Final Score</td>
+                        <td>${formatPercentage(result.final_confidence)}</td>
+                    </tr>
+                </table>`;
+            
+            detailReasoning.innerHTML = '';
+            if (result.llm_model1_reason || result.llm_model2_reason) {
+                detailReasoning.innerHTML += '<h4>AI Reasoning:</h4>';
+                
+                if (result.llm_model1_reason) {
+                    detailReasoning.innerHTML += `
+                        <div class="reasoning-block">
+                            <h5>${window.modelNames?.llm_model1 || "LLM Model 1"}:</h5>
+                            <p>${result.llm_model1_reason}</p>
+                        </div>`;
+                }
+                
+                if (result.llm_model2_reason) {
+                    detailReasoning.innerHTML += `
+                        <div class="reasoning-block">
+                            <h5>${window.modelNames?.llm_model2 || "LLM Model 2"}:</h5>
+                            <p>${result.llm_model2_reason}</p>
+                        </div>`;
+                }
+            }
+            
+            detailIndicators.innerHTML = '';
+            if (result.indicators && result.indicators.length > 0) {
+                detailIndicators.innerHTML += '<h4>Detected Indicators:</h4><ul class="indicators-list">';
+                result.indicators.forEach(indicator => {
+                    const severityClass = 
+                        indicator.severity === 'high' || indicator.severity === 'critical' ? 'danger-text' :
+                        indicator.severity === 'medium' ? 'warning-text' :
+                        indicator.severity === 'low' ? 'caution-text' : 'info-text';
+                    
+                    detailIndicators.innerHTML += `
+                        <li class="indicator-item">
+                            <span class="indicator-type ${severityClass}">${indicator.type}</span>
+                            <span class="indicator-desc">${indicator.description}</span>
+                        </li>`;
+                });
+                detailIndicators.innerHTML += '</ul>';
+            }
+            
+            modal.classList.remove('hidden');
         }
     </script>
 </body>

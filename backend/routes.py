@@ -222,13 +222,13 @@ def register_routes(app):
     #-----------------
     # Phishing Analysis
     #-----------------
-    
+        
     @app.route('/analyze_email', methods=['POST', 'OPTIONS'])
     @cross_origin(origins="*")
     def analyze_email():
         """
         Analyze email text for phishing attempts.
-        Expects: selected_text, email_data, jwt_token
+        Expects: selected_text, email_data, jwt_token, models (optional)
         Returns: Analysis results with confidence scores and indicators
         """
         if request.method == 'OPTIONS':
@@ -248,8 +248,12 @@ def register_routes(app):
                 
             email_content = data.get("selected_text", "").strip()
             email_data = data.get("email_data", {})
+            selected_models = data.get("models", None)  # Get selected models if provided
+            save_analysis = data.get("save_analysis", True)  # Default to saving
             
             print(f"📧 Email analysis request received: {email_data}", flush=True)
+            if selected_models:
+                print(f"📊 Selected models: {selected_models}", flush=True)
             
             if not email_content:
                 return jsonify({
@@ -294,12 +298,16 @@ def register_routes(app):
             email_from = email_data.get("from", "")
             print(f"📧 Analyzing email: '{email_subject}' from: {email_from}", flush=True)
             
-            # Enhanced phishing analysis
-            analysis_result = current_app.analyze_phishing(email_content)
+            # Enhanced phishing analysis with selected models
+            analysis_result = current_app.analyze_phishing(email_content, selected_models)
             
             # Use the enhanced analysis result
-            nlp_confidence = analysis_result["nlp_confidence"]
-            llm_confidence = analysis_result["llm_confidence"]
+            nlp_model1_confidence = analysis_result.get("nlp_model1_confidence")
+            nlp_model2_confidence = analysis_result.get("nlp_model2_confidence") 
+            llm_model1_confidence = analysis_result.get("llm_model1_confidence")
+            llm_model2_confidence = analysis_result.get("llm_model2_confidence")
+            llm_model1_reason = analysis_result.get("llm_model1_reason")
+            llm_model2_reason = analysis_result.get("llm_model2_reason")
             final_confidence = analysis_result["final_confidence"]
             result_str = analysis_result["result"]
             severity = analysis_result["severity"]
@@ -307,32 +315,47 @@ def register_routes(app):
             # Extract email indicators for better feedback
             indicators = current_app.extract_phishing_indicators(email_content)
             
-            # Save analysis result to database
-            new_text = PhishingText(
-                user_id=user.id,
-                selected_text=email_content,
-                phishing_result=result_str,
-                nlp_confidence=nlp_confidence,
-                llm_confidence=llm_confidence,
-                final_confidence=final_confidence,
-                severity=severity,
-                indicators=json.dumps(indicators)
-            )
-            db.session.add(new_text)
-            db.session.commit()
-            print(f"✅ Analysis result saved: {current_user}", flush=True)
+            # Save analysis result to database if requested
+            if save_analysis:
+                new_text = PhishingText(
+                    user_id=user.id,
+                    selected_text=email_content,
+                    phishing_result=result_str,
+                    nlp_model1_confidence=nlp_model1_confidence if nlp_model1_confidence is not None else 0.5,
+                    nlp_model2_confidence=nlp_model2_confidence if nlp_model2_confidence is not None else 0.5,
+                    llm_model1_confidence=llm_model1_confidence if llm_model1_confidence is not None else 0.5,
+                    llm_model2_confidence=llm_model2_confidence if llm_model2_confidence is not None else 0.5,
+                    llm_model1_reason=llm_model1_reason,
+                    llm_model2_reason=llm_model2_reason,
+                    final_confidence=final_confidence,
+                    severity=severity,
+                    indicators=json.dumps(indicators)
+                )
+                db.session.add(new_text)
+                db.session.commit()
+                print(f"✅ Analysis result saved: {current_user}", flush=True)
             
-            # Return success response
+            # Return success response with all model results
             return jsonify({
                 "success": True,
                 "message": "Email analysis completed",
                 "result": result_str,
                 "severity": severity,
-                "nlp_confidence": nlp_confidence,
-                "llm_confidence": llm_confidence,
+                "nlp_model1_confidence": nlp_model1_confidence,
+                "nlp_model2_confidence": nlp_model2_confidence,
+                "llm_model1_confidence": llm_model1_confidence,
+                "llm_model2_confidence": llm_model2_confidence,
+                "llm_model1_reason": llm_model1_reason,
+                "llm_model2_reason": llm_model2_reason,
                 "final_confidence": final_confidence,
                 "username": user.username,
-                "indicators": indicators
+                "indicators": indicators,
+                "models": {
+                    "nlp_model1": "Keyword & Pattern Analysis",
+                    "nlp_model2": "Statistical & Linguistic Analysis",
+                    "llm_model1": "Llama 3.3 70B",
+                    "llm_model2": "Gemma 2 9B IT"
+                }
             }), 200
                 
         except Exception as e:
@@ -343,7 +366,6 @@ def register_routes(app):
                 "success": False,
                 "message": "Server error"
             }), 500
-
     @app.route('/get_dashboard_data', methods=['GET'])
     def get_dashboard_data():
         """
@@ -379,14 +401,24 @@ def register_routes(app):
                         "selected_text": r.selected_text[:200] + "..." if len(r.selected_text) > 200 else r.selected_text,
                         "phishing_result": r.phishing_result,
                         "severity": r.severity,
-                        "nlp_confidence": r.nlp_confidence,
-                        "llm_confidence": r.llm_confidence,
+                        "nlp_model1_confidence": r.nlp_model1_confidence,
+                        "nlp_model2_confidence": r.nlp_model2_confidence,
+                        "llm_model1_confidence": r.llm_model1_confidence,
+                        "llm_model2_confidence": r.llm_model2_confidence,
+                        "llm_model1_reason": r.llm_model1_reason,
+                        "llm_model2_reason": r.llm_model2_reason,
                         "final_confidence": r.final_confidence,
                         "created_at": r.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                         "indicators": json.loads(r.indicators) if r.indicators else []
                     }
                     for r in results
-                ]
+                ],
+                "models": {
+                    "nlp_model1": "Keyword & Pattern Analysis",
+                    "nlp_model2": "Statistical & Linguistic Analysis",
+                    "llm_model1": "Llama 3.3 70B",
+                    "llm_model2": "Gemma 2 9B IT"
+                }
             }
             
             return jsonify(data), 200

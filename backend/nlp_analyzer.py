@@ -1,18 +1,18 @@
 """
 NLP-based phishing detection module.
-This module implements a rule-based phishing detection algorithm using 
+This module implements multiple rule-based phishing detection algorithms using 
 natural language processing techniques.
 """
+import re
+import string
+from collections import Counter
 
-def check_phishing_with_nlp(text):
+def check_phishing_with_nlp_model1(text):
     """
-    Enhanced NLP-based phishing detection using a comprehensive approach:
+    NLP Model 1: Keyword and pattern-based approach
     
-    1. Keyword matching with weighted scores
-    2. URL analysis
-    3. Urgency/threat detection
-    4. Grammar and spelling analysis
-    5. Suspicious request detection
+    Uses keyword matching with weighted scores, URL analysis,
+    urgency detection, and suspicious request detection.
     
     Args:
         text (str): The email text to analyze
@@ -23,7 +23,7 @@ def check_phishing_with_nlp(text):
     """
     text_lower = text.lower()
     
-    # 1. Phishing keywords with weights
+    # Phishing keywords with weights
     phishing_keywords = {
         # Urgency indicators
         "urgent": 0.5, "immediately": 0.5, "alert": 0.4, "attention": 0.3, 
@@ -70,7 +70,7 @@ def check_phishing_with_nlp(text):
     else:
         keyword_score = 0.0
     
-    # 2. URL analysis
+    # URL analysis
     urls = []
     words = text_lower.split()
     for word in words:
@@ -82,7 +82,7 @@ def check_phishing_with_nlp(text):
     if len(urls) > 0:
         url_score = min(1.0, len(urls) * 0.2)  # Each URL adds 0.2 to score, max 1.0
     
-    # 3. Urgency/threat indicators
+    # Urgency/threat indicators
     urgency_phrases = [
         "as soon as possible", "urgent action", "immediate attention",
         "within 24 hours", "within 48 hours", "right away", "deadline",
@@ -96,7 +96,7 @@ def check_phishing_with_nlp(text):
             urgency_score += 0.3
     urgency_score = min(1.0, urgency_score)
     
-    # 4. Suspicious requests
+    # Suspicious requests
     suspicious_phrases = [
         "verify your identity", "confirm your details", "update your account",
         "click this link", "open the attachment", "enter your", "fill out",
@@ -110,8 +110,7 @@ def check_phishing_with_nlp(text):
             request_score += 0.3
     request_score = min(1.0, request_score)
     
-    # 5. Poor grammar or misspellings is a phishing indicator
-    # This is simplified - a real implementation would use more sophisticated methods
+    # Poor grammar or misspellings is a phishing indicator
     grammar_indicators = [
         "kindly", "dear valued customer", "dear customer", "valued customer",
         "your account has", "we detected", "we have detected", "we noticed",
@@ -142,120 +141,198 @@ def check_phishing_with_nlp(text):
     )
     
     # Add some debug logging
-    print(f"📊 NLP Analysis Scores: keywords={keyword_score:.2f}, URLs={url_score:.2f}, " 
+    print(f"📊 NLP Model 1 Scores: keywords={keyword_score:.2f}, URLs={url_score:.2f}, " 
           f"urgency={urgency_score:.2f}, requests={request_score:.2f}, grammar={grammar_score:.2f}",
           flush=True)
-    print(f"📊 NLP Final Score: {final_score:.2f}", flush=True)
+    print(f"📊 NLP Model 1 Final Score: {final_score:.2f}", flush=True)
     
     return min(final_score, 1.0)
 
-def analyze_context(text):
+def check_phishing_with_nlp_model2(text):
     """
-    Analyze the context of the email for special cases or exceptions.
-    Some legitimate emails may contain language that triggers phishing 
-    detection (e.g., password reset emails from legitimate sources).
+    NLP Model 2: Enhanced statistical and linguistic analysis
+    
+    Focuses on statistical text features, uses n-grams, and employs linguistic patterns
+    common in phishing emails. Includes analysis of:
+    1. Text statistics (length, capitalization, punctuation)
+    2. Domain-specific suspicious patterns
+    3. Word n-grams common in phishing
+    4. Lexical diversity and writing style
     
     Args:
         text (str): The email text to analyze
         
     Returns:
-        dict: Context information including domain legitimacy and special cases
+        float: A confidence score between 0.0 and 1.0 where higher values 
+              indicate a higher likelihood of phishing
     """
     text_lower = text.lower()
     
-    # Check for legitimate domains in links
-    trusted_domains = [
-        "google.com", "microsoft.com", "apple.com", "amazon.com", 
-        "facebook.com", "twitter.com", "linkedin.com", "github.com",
-        "outlook.com", "live.com", "office365.com", "gmail.com"
+    # 1. Statistical text features
+    stats_score = 0
+    
+    # Check for excessive capitalization (shouting)
+    caps_count = sum(1 for c in text if c.isupper())
+    caps_ratio = caps_count / len(text) if len(text) > 0 else 0
+    if caps_ratio > 0.2:  # If more than 20% is capitalized
+        stats_score += 0.2
+    
+    # Check for excessive punctuation (especially ! and ?)
+    punct_count = sum(1 for c in text if c in "!?.")
+    punct_ratio = punct_count / len(text) if len(text) > 0 else 0
+    if punct_ratio > 0.05:  # If more than 5% is punctuation
+        stats_score += 0.2
+    
+    # Check for very short or very long texts
+    if len(text) < 100:  # Very short emails are suspicious
+        stats_score += 0.1
+    elif len(text) > 3000:  # Very long emails are less likely to be phishing
+        stats_score -= 0.2
+    
+    # 2. Domain-specific suspicious patterns
+    domain_score = 0
+    
+    # Check for mentions of money or financial terms
+    money_terms = ["$", "dollar", "eur", "euro", "money", "cash", "bitcoin", "btc", "crypto", "bank", "financial", "account", "payment"]
+    money_mentions = sum(1 for term in money_terms if term in text_lower)
+    domain_score += min(0.5, money_mentions * 0.05)  # Max 0.5 from money terms
+    
+    # Check for suspicious email domains
+    suspicious_domains = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com"]
+    domain_score += 0.3 if any(domain in text_lower for domain in suspicious_domains) else 0
+    
+    # 3. N-gram analysis
+    ngram_score = 0
+    
+    # Common phishing bi-grams and tri-grams
+    phishing_ngrams = [
+        "click here", "verify account", "personal information", "account details", 
+        "security reasons", "urgent action", "claim your", "form attached", 
+        "kindly update", "banking details", "credit card", "this link", 
+        "final notice", "your account has", "identity verification"
     ]
     
-    found_domains = []
-    for domain in trusted_domains:
-        if domain in text_lower:
-            found_domains.append(domain)
+    ngram_count = sum(1 for ngram in phishing_ngrams if ngram in text_lower)
+    ngram_score = min(0.7, ngram_count * 0.1)  # Max 0.7 from n-grams
     
-    # Check for legitimate contexts
-    legitimate_contexts = {
-        "password_reset": [
-            "you requested a password reset", 
-            "reset your password", 
-            "password reset link",
-            "forgot your password"
-        ],
-        "account_verification": [
-            "verify your email address",
-            "confirm your email",
-            "email verification"
-        ],
-        "security_notification": [
-            "sign-in from a new device",
-            "new sign-in",
-            "security alert"
-        ]
-    }
+    # 4. Lexical diversity and writing style
+    style_score = 0
     
-    detected_contexts = []
-    for context_type, phrases in legitimate_contexts.items():
-        for phrase in phrases:
-            if phrase in text_lower:
-                detected_contexts.append(context_type)
-                break
+    # Calculate lexical diversity (unique words / total words)
+    words = re.findall(r'\b\w+\b', text_lower)
+    unique_words = set(words)
+    lexical_diversity = len(unique_words) / len(words) if words else 0
     
-    return {
-        "trusted_domains": found_domains,
-        "legitimate_contexts": detected_contexts,
-        "has_legitimate_context": len(detected_contexts) > 0,
-        "has_trusted_domain": len(found_domains) > 0
-    }
-
-def get_specific_indicators(text):
-    """
-    Extract specific phishing indicators from the text to provide
-    actionable feedback to the user.
-    
-    Args:
-        text (str): The email text to analyze
+    if lexical_diversity < 0.4:  # Low diversity is suspicious
+        style_score += 0.3
         
-    Returns:
-        list: List of specific indicators found in the text
-    """
+    # Check for formal vs informal language
+    formal_markers = ["sincerely", "regards", "dear", "respectfully", "to whom it may concern"]
+    formal_count = sum(1 for marker in formal_markers if marker in text_lower)
+    
+    informal_markers = ["hey", "hi there", "hello there", "thanks", "cheers", "bye"]
+    informal_count = sum(1 for marker in informal_markers if marker in text_lower)
+    
+    if formal_count > 0 and informal_count > 0:  # Mixing formal and informal is suspicious
+        style_score += 0.2
+    
+    # Final weighted score
+    weights = {
+        'stats': 0.15,
+        'domain': 0.25,
+        'ngram': 0.40,
+        'style': 0.20
+    }
+    
+    final_score = (
+        stats_score * weights['stats'] +
+        domain_score * weights['domain'] +
+        ngram_score * weights['ngram'] +
+        style_score * weights['style']
+    )
+    
+    # Debug logging
+    print(f"📊 NLP Model 2 Scores: stats={stats_score:.2f}, domain={domain_score:.2f}, " 
+          f"ngrams={ngram_score:.2f}, style={style_score:.2f}",
+          flush=True)
+    print(f"📊 NLP Model 2 Final Score: {final_score:.2f}", flush=True)
+    
+    return min(final_score, 1.0)
+
+def extract_phishing_indicators(text):
+    """Extract specific phishing indicators from the email text"""
     text_lower = text.lower()
     indicators = []
     
-    # Look for suspicious URLs
+    # Check for urgent language
+    urgent_words = ["urgent", "immediately", "right away", "as soon as possible", "warning"]
+    if any(word in text_lower for word in urgent_words):
+        indicators.append({
+            "type": "urgency",
+            "severity": "high",
+            "description": "Email uses urgent language to pressure the recipient"
+        })
+    
+    # Check for suspicious URLs
     words = text_lower.split()
     suspicious_urls = []
     for word in words:
-        if (word.startswith('http') or word.startswith('www.') or 
-            '.com' in word or '.net' in word or '.org' in word):
+        if (word.startswith('http') or word.startswith('www.') or '.com' in word or 
+            '.net' in word or '.org' in word):
             suspicious_urls.append(word)
     
     if suspicious_urls:
         indicators.append({
-            "type": "suspicious_urls",
+            "type": "suspicious_links",
             "severity": "high",
-            "description": f"Found {len(suspicious_urls)} potentially suspicious URLs"
+            "description": f"Email contains {len(suspicious_urls)} link(s) that should be verified"
         })
     
-    # Look for urgent language
-    urgent_phrases = ["urgent", "immediately", "right away", "as soon as possible"]
-    found_urgent = [phrase for phrase in urgent_phrases if phrase in text_lower]
-    if found_urgent:
-        indicators.append({
-            "type": "urgency",
-            "severity": "medium",
-            "description": "Email uses urgent language to create pressure"
-        })
-    
-    # Look for sensitive information requests
-    sensitive_phrases = ["password", "credit card", "social security", "bank account"]
+    # Check for requests for sensitive information
+    sensitive_phrases = ["password", "social security", "ssn", "credit card", "account number", "banking"]
     found_sensitive = [phrase for phrase in sensitive_phrases if phrase in text_lower]
     if found_sensitive:
         indicators.append({
-            "type": "sensitive_info",
+            "type": "sensitive_info_request",
             "severity": "critical",
             "description": f"Email requests sensitive information: {', '.join(found_sensitive)}"
+        })
+    
+    # Check for suspicious attachments
+    attachment_words = ["attachment", "attached", "file", "document", "open the", "download"]
+    if any(word in text_lower for word in attachment_words):
+        indicators.append({
+            "type": "suspicious_attachment",
+            "severity": "medium",
+            "description": "Email mentions attachments which may contain malware"
+        })
+    
+    # Check for misspellings and poor grammar (simplified)
+    grammar_indicators = ["kindly", "dear valued customer", "dear customer", "valued customer"]
+    if any(indicator in text_lower for indicator in grammar_indicators):
+        indicators.append({
+            "type": "poor_writing",
+            "severity": "low",
+            "description": "Email contains phrasing commonly found in phishing attempts"
+        })
+    
+    # Statistical anomalies
+    words = re.findall(r'\b\w+\b', text_lower)
+    if len(words) > 0:
+        avg_word_length = sum(len(word) for word in words) / len(words)
+        if avg_word_length < 3.5 or avg_word_length > 7:
+            indicators.append({
+                "type": "statistical_anomaly",
+                "severity": "low",
+                "description": "Email text has unusual word length patterns"
+            })
+    
+    # If no indicators found
+    if not indicators:
+        indicators.append({
+            "type": "no_obvious_indicators",
+            "severity": "info",
+            "description": "No obvious phishing indicators detected"
         })
     
     return indicators

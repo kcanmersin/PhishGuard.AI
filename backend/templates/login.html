@@ -32,135 +32,91 @@
                 <div class="form-footer">
                     <p>Don't have an account? <a href="{{ url_for('register_page') }}">Register</a></p>
                 </div>
-                
-                <div id="tokenDebug" style="margin-top: 20px; padding: 10px; background-color: #f0f0f0; border-radius: 5px; display: none;">
-                    <h3>Token Debug Bilgisi</h3>
-                    <p id="tokenStatus">Henüz token yok</p>
-                    <button id="debugBtn" class="btn" style="background-color: #333; color: white; margin-top: 10px;">Token Bilgisini Göster</button>
-                </div>
             </div>
         </div>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('tokenDebug').style.display = 'block';
-            document.getElementById('debugBtn').addEventListener('click', showTokenInfo);
-            updateTokenInfo();
-        });
-    
-        function updateTokenInfo() {
-            const tokenStatus = document.getElementById('tokenStatus');
-            const token = localStorage.getItem('jwtToken');
-            
-            if (token) {
-                const tokenPreview = token.length > 30 
-                    ? token.substring(0, 15) + '...' + token.substring(token.length - 15)
-                    : token;
-                tokenStatus.innerHTML = `
-                    <strong>Token var!</strong><br>
-                    <small>${tokenPreview}</small><br>
-                    <small>Uzunluk: ${token.length} karakter</small>
-                `;
-                tokenStatus.style.color = '#047857';
-            } else {
-                tokenStatus.innerHTML = 'Token bulunamadı! localStorage\'da jwtToken anahtarı yok.';
-                tokenStatus.style.color = '#dc2626';
-            }
-        }
-    
-        function showTokenInfo() {
-            const token = localStorage.getItem('jwtToken');
-            console.log('localStorage\'daki token:', token);
-            alert('Token konsola yazdırıldı. F12 tuşuna basıp Console sekmesine bakın.');
-            updateTokenInfo();
-        }
-    
-        const urlParams = new URLSearchParams(window.location.search);
-        const returnToGmail = urlParams.get('return_to_gmail') === 'true';
-    
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value;
-            const errorMessage = document.getElementById('errorMessage');
-            const successMessage = document.getElementById('successMessage');
-            
-            errorMessage.style.display = 'none';
-            successMessage.style.display = 'none';
-            
-            try {
-                const response = await fetch('/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        username: username,
-                        password: password
-                    })
-                });
+            const urlParams = new URLSearchParams(window.location.search);
+            const returnToGmail = urlParams.get('return_to_gmail') === 'true';
+        
+            document.getElementById('loginForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
                 
-                const data = await response.json();
-                console.log('Login yanıtı:', data); // Debug için JSON yanıtını göster
+                const username = document.getElementById('username').value.trim();
+                const password = document.getElementById('password').value;
+                const errorMessage = document.getElementById('errorMessage');
+                const successMessage = document.getElementById('successMessage');
                 
-                if (response.ok) {
-                    let token;
+                errorMessage.style.display = 'none';
+                successMessage.style.display = 'none';
+                
+                try {
+                    const response = await fetch('/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            username: username,
+                            password: password
+                        })
+                    });
                     
-                    // Yeni API yanıtı formatına uyumlu şekilde token al
-                    if (data.access_token) {
-                        token = data.access_token;
-                    } else if (data.success && data.access_token) {
-                        token = data.access_token;
-                    }
+                    const data = await response.json();
                     
-                    if (token) {
-                        localStorage.setItem('jwtToken', token);
-                        updateTokenInfo();
+                    if (response.ok) {
+                        let token;
                         
-                        successMessage.textContent = 'Login başarılı! Token kaydedildi.';
-                        successMessage.style.display = 'block';
-                        
-                        console.log('Token kaydedildi:', token.substring(0, 15) + '...'); // Debug için
-                        
-                        try {
-                            if (typeof chrome !== 'undefined' && chrome.storage) {
-                                chrome.storage.local.set({jwtToken: token});
-                                console.log('Token chrome.storage\'a kaydedildi');
-                            }
-                        } catch (err) {
-                            console.error('Chrome storage hatası:', err);
+                        // Get token from response
+                        if (data.access_token) {
+                            token = data.access_token;
+                        } else if (data.success && data.access_token) {
+                            token = data.access_token;
                         }
                         
-                        const tokenEvent = new CustomEvent('tokensaved', {
-                            detail: { token: token }
-                        });
-                        document.dispatchEvent(tokenEvent);
-                        
-                        setTimeout(() => {
-                            if (returnToGmail) {
-                                const encodedToken = encodeURIComponent(token);
-                                window.location.href = `https://mail.google.com/mail/u/0/#inbox?phishguard_token=${encodedToken}`;
-                            } else {
-                                window.location.href = '/dashboard';
+                        if (token) {
+                            localStorage.setItem('jwtToken', token);
+                            
+                            successMessage.textContent = 'Login successful! Redirecting...';
+                            successMessage.style.display = 'block';
+                            
+                            try {
+                                if (typeof chrome !== 'undefined' && chrome.storage) {
+                                    chrome.storage.local.set({jwtToken: token});
+                                }
+                            } catch (err) {
+                                console.error('Chrome storage error:', err);
                             }
-                        }, 2000);
+                            
+                            const tokenEvent = new CustomEvent('tokensaved', {
+                                detail: { token: token }
+                            });
+                            document.dispatchEvent(tokenEvent);
+                            
+                            setTimeout(() => {
+                                if (returnToGmail) {
+                                    const encodedToken = encodeURIComponent(token);
+                                    window.location.href = `https://mail.google.com/mail/u/0/#inbox?phishguard_token=${encodedToken}`;
+                                } else {
+                                    window.location.href = '/dashboard';
+                                }
+                            }, 1500);
+                        } else {
+                            errorMessage.textContent = 'Authentication error. Please try again.';
+                            errorMessage.style.display = 'block';
+                        }
                     } else {
-                        errorMessage.textContent = 'Token alınamadı!';
+                        errorMessage.textContent = data.message || 'Login failed. Please check your credentials.';
                         errorMessage.style.display = 'block';
-                        console.error('Token bulunamadı:', data);
                     }
-                } else {
-                    errorMessage.textContent = data.message || 'Login failed. Please check your credentials.';
+                } catch (error) {
+                    errorMessage.textContent = 'An error occurred. Please try again later.';
                     errorMessage.style.display = 'block';
-                    console.error('Login başarısız:', data);
+                    console.error('Login error:', error);
                 }
-            } catch (error) {
-                errorMessage.textContent = 'An error occurred. Please try again later.';
-                errorMessage.style.display = 'block';
-                console.error('Login hatası:', error);
-            }
+            });
         });
     </script>
 </body>

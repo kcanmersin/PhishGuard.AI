@@ -1,25 +1,5 @@
 // PhisGuard.AI popup script
 document.addEventListener('DOMContentLoaded', function() {
-  // Enable extended debug logging
-  let DEBUG = false;
-  
-  function debug(...args) {
-    if (DEBUG) {
-      console.log('[PhisGuard Debug]', ...args);
-    }
-  }
-  
-  // Add debug button handler
-  document.getElementById('debug-btn').addEventListener('click', function() {
-    DEBUG = !DEBUG;
-    console.log("Debug mode:", DEBUG ? "ON" : "OFF");
-    if (DEBUG) {
-      alert("Debug mode ON - Check browser console for logs");
-    }
-  });
-  
-  debug('Popup script loaded');
-  
   // Elements
   const loginView = document.getElementById('login-view');
   const registerView = document.getElementById('register-view');
@@ -38,9 +18,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const resultTitle = document.getElementById('result-title');
   const resultConfidence = document.getElementById('result-confidence');
   const confidenceLevel = document.getElementById('confidence-level');
+  const modelResults = document.getElementById('model-results');
+  const reasoningContainer = document.getElementById('reasoning-container');
 
-  // API URL
-  // Try both localhost and 127.0.0.1
+  // API URL (try both localhost and 127.0.0.1)
   const API_URL = 'http://localhost:5000';
   const BACKUP_API_URL = 'http://127.0.0.1:5000';
   
@@ -64,21 +45,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Function to make API request with retry on different URL
   function apiRequest(endpoint, options) {
-    debug(`Making API request to ${API_URL}${endpoint}`);
-    
     return fetch(`${API_URL}${endpoint}`, options)
       .catch(error => {
         // If the main URL fails, try the backup URL
-        debug(`Error with primary URL, trying backup: ${error.message}`);
         return fetch(`${BACKUP_API_URL}${endpoint}`, options);
       });
   }
   
   // Function to check if user is already logged in
   function checkLoginStatus() {
-    debug('Checking login status...');
-    debug('Current cookies:', document.cookie);
-    
     apiRequest('/check_token', {
       method: 'POST',
       headers: {
@@ -89,9 +64,6 @@ document.addEventListener('DOMContentLoaded', function() {
       body: JSON.stringify({ token: "" }) // Empty token to prevent 400 errors
     })
     .then(response => {
-      debug('Check token response status:', response.status);
-      debug('Check token headers:', Object.fromEntries([...response.headers.entries()]));
-      
       if (!response.ok) {
         throw new Error(`Invalid response: ${response.status}`);
       }
@@ -99,18 +71,13 @@ document.addEventListener('DOMContentLoaded', function() {
       return response.json();
     })
     .then(data => {
-      debug('Check token response data:', data);
-      
       if (data.valid) {
-        debug('User is logged in as:', data.username);
         showDashboardView(data.username);
       } else {
-        debug('User is not logged in');
         showLoginView();
       }
     })
     .catch(error => {
-      debug('Error checking login status:', error.message);
       showLoginView();
     });
   }
@@ -122,18 +89,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
     
-    debug('Login attempt:', { username, password: '******' });
-    
     if (!username || !password) {
-      debug('Login validation failed: Missing fields');
       showStatus(loginStatus, 'Please enter both username and password', 'error');
       return;
     }
     
     // Show temporary status
     showStatus(loginStatus, 'Logging in...', 'warning');
-    
-    debug(`Sending login request to API`);
     
     apiRequest('/login', {
       method: 'POST',
@@ -148,9 +110,6 @@ document.addEventListener('DOMContentLoaded', function() {
       })
     })
     .then(response => {
-      debug('Login response status:', response.status);
-      debug('Login response headers:', Object.fromEntries([...response.headers.entries()]));
-      
       if (!response.ok) {
         return response.json().then(errorData => {
           throw new Error(errorData.message || 'Invalid username or password');
@@ -160,32 +119,24 @@ document.addEventListener('DOMContentLoaded', function() {
       return response.json();
     })
     .then(data => {
-      debug('Login response data:', data);
-      
       if (data.success) {
-        debug('Login successful for user:', data.user.username);
         showStatus(loginStatus, 'Login successful!', 'success');
         
         // Store the token in chrome.storage for use by content script
         if (data.access_token) {
           chrome.storage.local.set({jwt_token: data.access_token}, function() {
-            debug('Token saved to chrome.storage');
+            console.log('Token saved to chrome.storage');
           });
         }
-        
-        // Check if cookie was set
-        debug('Cookies after login:', document.cookie);
         
         setTimeout(() => {
           showDashboardView(data.user.username);
         }, 1000);
       } else {
-        debug('Login failed:', data.message);
         showStatus(loginStatus, data.message || 'Login failed', 'error');
       }
     })
     .catch(error => {
-      debug('Login error:', error.message);
       showStatus(loginStatus, error.message || 'Network or server error', 'error');
     });
   }
@@ -193,36 +144,18 @@ document.addEventListener('DOMContentLoaded', function() {
   // Function to handle registration
   function handleRegister(e) {
     e.preventDefault();
-    debug('Register form submitted');
     
     const username = document.getElementById('reg-username').value;
     const email = document.getElementById('email').value;
     const password = document.getElementById('reg-password').value;
     
-    debug('Register data:', { 
-      username, 
-      email, 
-      passwordLength: password ? password.length : 0 
-    });
-    
     if (!username || !email || !password) {
-      debug('Register validation failed: Missing fields');
       showStatus(registerStatus, 'Please fill all fields', 'error');
       return;
     }
     
     // Clear previous status
     registerStatus.classList.add('hidden');
-    
-    // Prepare request data
-    const requestData = {
-      username: username,
-      email: email,
-      password: password
-    };
-    
-    debug('Register request data:', requestData);
-    debug(`Sending registration request to ${API_URL}/register`);
     
     // Show temporary status
     showStatus(registerStatus, 'Registering...', 'warning');
@@ -233,12 +166,13 @@ document.addEventListener('DOMContentLoaded', function() {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      body: JSON.stringify(requestData)
+      body: JSON.stringify({
+        username: username,
+        email: email,
+        password: password
+      })
     })
     .then(response => {
-      debug('Register response status:', response.status);
-      debug('Register response headers:', Object.fromEntries([...response.headers.entries()]));
-      
       if (response.status === 400) {
         // For 400 errors, we should still be able to parse the JSON error message
         return response.json().then(errorData => {
@@ -265,22 +199,26 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     })
     .then(data => {
-      debug('Registration successful!', data);
       showStatus(registerStatus, data.message || 'Registration successful! Please login.', 'success');
       setTimeout(() => {
         showLoginView();
       }, 2000);
     })
     .catch(error => {
-      debug('Registration failed:', error.message);
       showStatus(registerStatus, error.message || 'Registration failed', 'error');
     });
   }
 
   // Function to handle logout
   function handleLogout() {
-    // Since we're using cookies, we don't need to manually clear localStorage
-    // Just redirect to login view
+    // Clear token
+    chrome.storage.local.remove('jwt_token', function() {
+      console.log('Token removed from chrome.storage');
+    });
+    localStorage.removeItem('jwtToken');
+    sessionStorage.clear();
+    
+    // Go back to login view
     showLoginView();
   }
 
@@ -290,36 +228,27 @@ document.addEventListener('DOMContentLoaded', function() {
     analysisLoading.classList.remove('hidden');
     resultContainer.classList.add('hidden');
     
-    debug('Requesting email analysis from content script');
-    
     // Get the token from chrome.storage
     chrome.storage.local.get('jwt_token', function(result) {
       const jwt_token = result.jwt_token;
-      debug('Retrieved token for analysis:', jwt_token ? `${jwt_token.substring(0, 10)}...` : 'None');
       
       // Send message to content script to analyze the current email
       chrome.tabs.query({active: true, currentWindow: true}, tabs => {
         if (!tabs || tabs.length === 0) {
-          debug('No active tab found');
           analysisLoading.classList.add('hidden');
           alert('Error: Cannot access the current tab');
           return;
         }
-        
-        debug('Sending message to tab:', tabs[0].id);
         
         chrome.tabs.sendMessage(tabs[0].id, {
           action: 'analyzeEmail',
           jwt_token: jwt_token // Pass the token explicitly
         }, response => {
           if (chrome.runtime.lastError) {
-            debug('Error sending message:', chrome.runtime.lastError);
             analysisLoading.classList.add('hidden');
             alert(`Error: ${chrome.runtime.lastError.message || 'Could not connect to the page'}`);
             return;
           }
-          
-          debug('Content script response:', response);
           
           if (!response || response.status === 'error') {
             analysisLoading.classList.add('hidden');
@@ -351,10 +280,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Set result class and title
     if (result.result === 'Phishing') {
       resultContainer.className = 'result-container result-phishing';
-      resultTitle.textContent = 'PHISHING DETECTED!';
+      resultTitle.innerHTML = '<i class="fas fa-exclamation-triangle"></i> PHISHING DETECTED!';
     } else {
       resultContainer.className = 'result-container result-safe';
-      resultTitle.textContent = 'Email appears safe';
+      resultTitle.innerHTML = '<i class="fas fa-check-circle"></i> Email appears safe';
     }
     
     // Display confidence
@@ -364,7 +293,132 @@ document.addEventListener('DOMContentLoaded', function() {
     // Set confidence bar
     confidenceLevel.style.width = `${confidencePercent}%`;
     confidenceLevel.style.backgroundColor = result.result === 'Phishing' ? 
-      '#dc3545' : '#28a745';
+      '#ef4444' : '#10b981';
+    
+    // Display individual model results
+    if (modelResults) {
+      // Show models section
+      modelResults.classList.remove('hidden');
+      
+      // Clear previous results
+      const modelResultsContent = modelResults.querySelector('.model-results-content');
+      modelResultsContent.innerHTML = '';
+      
+      // Create model result elements
+      const models = [
+        { name: 'NLP Model 1', value: result.nlp_model1_confidence, key: 'nlp_model1_confidence' },
+        { name: 'NLP Model 2', value: result.nlp_model2_confidence, key: 'nlp_model2_confidence' },
+        { name: 'LLM Model 1', value: result.llm_model1_confidence, key: 'llm_model1_confidence' },
+        { name: 'LLM Model 2', value: result.llm_model2_confidence, key: 'llm_model2_confidence' }
+      ];
+      
+      models.forEach(model => {
+        // Skip if model result is not available
+        if (model.value === null || model.value === undefined) return;
+        
+        const modelDiv = document.createElement('div');
+        modelDiv.className = 'model-result';
+        
+        const nameSpan = document.createElement('div');
+        nameSpan.textContent = model.name;
+        nameSpan.style.fontSize = '12px';
+        nameSpan.style.marginBottom = '3px';
+        
+        const barContainer = document.createElement('div');
+        barContainer.style.display = 'flex';
+        barContainer.style.alignItems = 'center';
+        
+        const barBg = document.createElement('div');
+        barBg.style.flex = '1';
+        barBg.style.height = '8px';
+        barBg.style.backgroundColor = '#e2e8f0';
+        barBg.style.borderRadius = '4px';
+        barBg.style.overflow = 'hidden';
+        
+        const bar = document.createElement('div');
+        const percent = Math.round(model.value * 100);
+        bar.style.width = `${percent}%`;
+        bar.style.height = '100%';
+        bar.style.backgroundColor = getConfidenceColor(model.value);
+        
+        const valueSpan = document.createElement('span');
+        valueSpan.textContent = `${percent}%`;
+        valueSpan.style.fontSize = '11px';
+        valueSpan.style.marginLeft = '5px';
+        valueSpan.style.minWidth = '35px';
+        valueSpan.style.textAlign = 'right';
+        
+        barBg.appendChild(bar);
+        barContainer.appendChild(barBg);
+        barContainer.appendChild(valueSpan);
+        
+        modelDiv.appendChild(nameSpan);
+        modelDiv.appendChild(barContainer);
+        
+        modelResultsContent.appendChild(modelDiv);
+      });
+    }
+    
+    // Display reasoning if available
+    if (reasoningContainer && (result.llm_model1_reason || result.llm_model2_reason)) {
+      // Show reasoning container
+      reasoningContainer.classList.remove('hidden');
+      
+      // Clear previous content
+      const reasoningContent = document.getElementById('reasoningContent');
+      reasoningContent.innerHTML = '';
+      
+      // Add LLM reasoning
+      if (result.llm_model1_reason) {
+        const model1Title = document.createElement('div');
+        model1Title.style.fontWeight = 'bold';
+        model1Title.style.marginBottom = '5px';
+        model1Title.textContent = 'LLM Model 1 Analysis:';
+        
+        const model1Text = document.createElement('p');
+        model1Text.textContent = result.llm_model1_reason;
+        model1Text.style.marginBottom = '10px';
+        
+        reasoningContent.appendChild(model1Title);
+        reasoningContent.appendChild(model1Text);
+      }
+      
+      if (result.llm_model2_reason) {
+        const model2Title = document.createElement('div');
+        model2Title.style.fontWeight = 'bold';
+        model2Title.style.marginBottom = '5px';
+        model2Title.textContent = 'LLM Model 2 Analysis:';
+        
+        const model2Text = document.createElement('p');
+        model2Text.textContent = result.llm_model2_reason;
+        
+        reasoningContent.appendChild(model2Title);
+        reasoningContent.appendChild(model2Text);
+      }
+      
+      // Set up toggle button
+      const toggleBtn = document.getElementById('toggleReasoning');
+      toggleBtn.addEventListener('click', function() {
+        const content = document.getElementById('reasoningContent');
+        if (content.classList.contains('hidden')) {
+          content.classList.remove('hidden');
+          this.classList.add('active');
+        } else {
+          content.classList.add('hidden');
+          this.classList.remove('active');
+        }
+      });
+    } else {
+      reasoningContainer.classList.add('hidden');
+    }
+  }
+  
+  // Helper function to get color based on confidence level
+  function getConfidenceColor(value) {
+    if (value >= 0.7) return '#ef4444'; // Danger/Red
+    if (value >= 0.5) return '#f97316'; // Warning/Orange
+    if (value >= 0.3) return '#eab308'; // Caution/Yellow
+    return '#10b981'; // Safe/Green
   }
 
   // Function to show login view
@@ -392,6 +446,8 @@ document.addEventListener('DOMContentLoaded', function() {
     dashboardView.classList.remove('hidden');
     resultContainer.classList.add('hidden');
     analysisLoading.classList.add('hidden');
+    modelResults.classList.add('hidden');
+    reasoningContainer.classList.add('hidden');
     usernameDisplay.textContent = username;
   }
 

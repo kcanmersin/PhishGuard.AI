@@ -5,7 +5,7 @@ This module initializes the Flask app and includes core functionality.
 import os
 import sys
 import logging
-from flask import Flask, render_template, redirect, url_for
+from flask import Flask, render_template, redirect, url_for, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -37,7 +37,7 @@ from models import init_db, db, User, PhishingText
 init_db(app)
 
 # Import analysis modules
-from nlp_analyzer import check_phishing_with_nlp
+from nlp_analyzer import check_phishing_with_nlp_model1, check_phishing_with_nlp_model2, extract_phishing_indicators
 from llm_analyzer import check_phishing_with_llm
 
 # Import routes and register them
@@ -61,26 +61,77 @@ def register_page():
 def dashboard_page():
     return render_template('dashboard.html')
 
-# Combined analysis function
-def analyze_phishing(text):
+# Enhanced multi-model analysis function
+def analyze_phishing(text, selected_models=None):
     """
-    Combined analysis using both NLP and LLM methods with weighted factors
-    and detailed output.
-    """
-    # Get confidence scores from both methods
-    nlp_confidence = check_phishing_with_nlp(text)
+    Enhanced analysis using multiple NLP and LLM models with weighted factors
+    and detailed output. Can selectively run only specified models.
     
-    # Use Groq API exclusively since OpenAI API key is not valid
-    llm_confidence = check_phishing_with_llm(
-        text=text, 
-        api_key=None,  # Not using OpenAI
-        use_groq=True,
-        groq_api_key=GROQ_API_KEY
-    )
+    Args:
+        text (str): The text to analyze
+        selected_models (dict, optional): Dictionary of models to use for analysis
+            e.g. {'nlp_model1': True, 'llm_model2': True}
+    """
+    if selected_models is None:
+        selected_models = {
+            'nlp_model1': True,
+            'nlp_model2': True,
+            'llm_model1': True,
+            'llm_model2': True
+        }
+    
+    # Initialize with defaults (neutral scores)
+    nlp_model1_confidence = 0.5
+    nlp_model2_confidence = 0.5
+    llm_model1_confidence = 0.5
+    llm_model2_confidence = 0.5
+    llm_model1_reason = ""
+    llm_model2_reason = ""
+    
+    # Get confidence scores only from selected models
+    if selected_models.get('nlp_model1'):
+        nlp_model1_confidence = check_phishing_with_nlp_model1(text)
+    
+    if selected_models.get('nlp_model2'):
+        nlp_model2_confidence = check_phishing_with_nlp_model2(text)
+    
+    # Get confidence scores and reasoning from selected LLM models
+    if selected_models.get('llm_model1') or selected_models.get('llm_model2'):
+        llm_results = check_phishing_with_llm(
+            text=text, 
+            api_key=None,  # Not using OpenAI
+            use_groq=True,
+            groq_api_key=GROQ_API_KEY
+        )
+        
+        if selected_models.get('llm_model1'):
+            llm_model1_confidence, llm_model1_reason = llm_results[0]
+        
+        if selected_models.get('llm_model2'):
+            llm_model2_confidence, llm_model2_reason = llm_results[1]
+    
+    # Calculate weights based on which models are selected
+    active_models_count = sum(1 for model in selected_models.values() if model)
+    if active_models_count == 0:
+        return {
+            "result": "Error",
+            "severity": "Unknown",
+            "error": "No models selected for analysis"
+        }
+    
+    # Each selected model contributes equally
+    weight_per_model = 1.0 / active_models_count
     
     # Calculate a weighted final score
-    # We can give more weight to the LLM as it's likely more accurate
-    final_confidence = (nlp_confidence * 0.4) + (llm_confidence * 0.6)
+    final_confidence = 0.0
+    if selected_models.get('nlp_model1'):
+        final_confidence += nlp_model1_confidence * weight_per_model
+    if selected_models.get('nlp_model2'):
+        final_confidence += nlp_model2_confidence * weight_per_model
+    if selected_models.get('llm_model1'):
+        final_confidence += llm_model1_confidence * weight_per_model
+    if selected_models.get('llm_model2'):
+        final_confidence += llm_model2_confidence * weight_per_model
     
     # Determine result
     result_str = "Phishing" if final_confidence > 0.5 else "Safe"
@@ -95,82 +146,29 @@ def analyze_phishing(text):
     else:
         severity = "Very low risk"
     
+    # Log the analysis results
+    print(f"📊 Analysis Results:", flush=True)
+    if selected_models.get('nlp_model1'):
+        print(f"📊 NLP Model 1: {nlp_model1_confidence:.2f}", flush=True)
+    if selected_models.get('nlp_model2'):
+        print(f"📊 NLP Model 2: {nlp_model2_confidence:.2f}", flush=True)
+    if selected_models.get('llm_model1'):
+        print(f"📊 LLM Model 1 (Llama): {llm_model1_confidence:.2f}", flush=True)
+    if selected_models.get('llm_model2'):
+        print(f"📊 LLM Model 2 (Gemma): {llm_model2_confidence:.2f}", flush=True)
+    print(f"📊 Final Confidence: {final_confidence:.2f} - {result_str} ({severity})", flush=True)
+    
     return {
         "result": result_str,
         "severity": severity,
-        "nlp_confidence": nlp_confidence,
-        "llm_confidence": llm_confidence,
+        "nlp_model1_confidence": nlp_model1_confidence if selected_models.get('nlp_model1') else None,
+        "nlp_model2_confidence": nlp_model2_confidence if selected_models.get('nlp_model2') else None,
+        "llm_model1_confidence": llm_model1_confidence if selected_models.get('llm_model1') else None,
+        "llm_model2_confidence": llm_model2_confidence if selected_models.get('llm_model2') else None,
+        "llm_model1_reason": llm_model1_reason if selected_models.get('llm_model1') else None,
+        "llm_model2_reason": llm_model2_reason if selected_models.get('llm_model2') else None,
         "final_confidence": final_confidence
     }
-
-# Extract phishing indicators for the UI
-def extract_phishing_indicators(text):
-    """Extract specific phishing indicators from the email text"""
-    text_lower = text.lower()
-    indicators = []
-    
-    # Check for urgent language
-    urgent_words = ["urgent", "immediately", "right away", "as soon as possible", "warning"]
-    if any(word in text_lower for word in urgent_words):
-        indicators.append({
-            "type": "urgency",
-            "severity": "high",
-            "description": "Email uses urgent language to pressure the recipient"
-        })
-    
-    # Check for suspicious URLs
-    words = text_lower.split()
-    suspicious_urls = []
-    for word in words:
-        if (word.startswith('http') or word.startswith('www.') or '.com' in word or 
-            '.net' in word or '.org' in word):
-            suspicious_urls.append(word)
-    
-    if suspicious_urls:
-        indicators.append({
-            "type": "suspicious_links",
-            "severity": "high",
-            "description": f"Email contains {len(suspicious_urls)} link(s) that should be verified"
-        })
-    
-    # Check for requests for sensitive information
-    sensitive_phrases = ["password", "social security", "ssn", "credit card", "account number", "banking"]
-    found_sensitive = [phrase for phrase in sensitive_phrases if phrase in text_lower]
-    if found_sensitive:
-        indicators.append({
-            "type": "sensitive_info_request",
-            "severity": "critical",
-            "description": f"Email requests sensitive information: {', '.join(found_sensitive)}"
-        })
-    
-    # Check for suspicious attachments
-    attachment_words = ["attachment", "attached", "file", "document", "open the", "download"]
-    if any(word in text_lower for word in attachment_words):
-        indicators.append({
-            "type": "suspicious_attachment",
-            "severity": "medium",
-            "description": "Email mentions attachments which may contain malware"
-        })
-    
-    # Check for misspellings and poor grammar (simplified)
-    grammar_indicators = ["kindly", "dear valued customer", "dear customer", "valued customer"]
-    if any(indicator in text_lower for indicator in grammar_indicators):
-        indicators.append({
-            "type": "poor_writing",
-            "severity": "low",
-            "description": "Email contains phrasing commonly found in phishing attempts"
-        })
-    
-    # If no indicators found
-    if not indicators:
-        indicators.append({
-            "type": "no_obvious_indicators",
-            "severity": "info",
-            "description": "No obvious phishing indicators detected"
-        })
-    
-    return indicators
-
 # Make analysis functions available at module level
 app.analyze_phishing = analyze_phishing
 app.extract_phishing_indicators = extract_phishing_indicators
